@@ -8,7 +8,7 @@ use sys_info;
 
 use tikv_util::config::{self, ReadableSize, KB};
 
-use engine::rocks::{Cache, LRUCacheOptions, MemoryAllocator};
+use engine::rocks::{Cache, LRUCacheOptions};
 
 use libc::c_int;
 
@@ -107,17 +107,19 @@ impl BlockCacheConfig {
         cache_opts.set_strict_capacity_limit(self.strict_capacity_limit);
         cache_opts.set_high_pri_pool_ratio(self.high_pri_pool_ratio);
         if let Some(ref s) = self.memory_allocator {
-            match s {
+            match s.as_str() {
                 #[cfg(feature = "jemalloc")]
-                String::from("jemalloc") => {
-                    if let Ok(allocator) = MemoryAllocator::new_jemalloc_memory_allocator() {
+                "jemalloc" => {
+                    if let Ok(allocator) = engine::rocks::MemoryAllocator::new_jemalloc_memory_allocator() {
                         cache_opts.set_memory_allocator(allocator);
                     } else {
-                        println!("allocator error");
+                        println!("allocator error\n")
                         //TODO warning
                     }
                 }
-                _ => {}
+                _ => {
+                    //TODO warning
+                }
             }
         }
         Some(Cache::new_lru_cache(cache_opts))
