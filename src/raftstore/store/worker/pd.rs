@@ -90,14 +90,12 @@ pub enum Task {
         write_io_rates: RecordPairVec,
     },
     CompactRegion {
-        start_key: Vec<u8>,
-        end_key: Vec<u8>,
-        level: int32,
+        region: Vec<Vec<u8>>,
+        level: i32
     },
 
     WarmupRegion {
-        start_key: Vec<u8>,
-        end_key: Vec<u8>,
+        region: Vec<Vec<u8>>,
     }
 }
 
@@ -153,6 +151,19 @@ pub struct PeerStat {
 impl Display for Task {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match *self {
+            Task::CompactRegion {
+                region:_,
+                level:_,
+            } => write!(
+                f,
+                "ask compact region",
+            ),
+            Task::WarmupRegion {
+                region:_,
+            } => write!(
+                f,
+                "ask warmup region",
+            ),
             Task::AskSplit {
                 ref region,
                 ref split_key,
@@ -347,7 +358,7 @@ impl<T: PdClient> Runner<T> {
         end_key: Option<&[u8]>,
     ) -> Result<(), Error> {
         warmup_range(
-            &self.engine,
+            &self.db,
             start_key,
             end_key
         );
@@ -358,10 +369,10 @@ impl<T: PdClient> Runner<T> {
         &mut self,
         start_key: Option<&[u8]>,
         end_key: Option<&[u8]>,
-        level: int32,
+        level: Option<i32>,
     ) -> Result<(), Error> {
         compact_files_in_range(
-            &self.engine,
+            &self.db,
             start_key,
             end_key,
             level
@@ -699,6 +710,7 @@ impl<T: PdClient> Runner<T> {
 
     fn schedule_heartbeat_receiver(&mut self, handle: &Handle) {
         let router = self.router.clone();
+        let scheduler = self.scheduler.clone();
         let store_id = self.store_id;
         let f = self
             .pd_client
@@ -768,29 +780,28 @@ impl<T: PdClient> Runner<T> {
                     let req = new_merge_request(merge);
                     send_admin_request(&router, region_id, epoch, peer, req, Callback::None)
                 } else if resp.has_compact_region() {
-//                    PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["compact_region"].inc());
-                    let compact_region = resp.take_compact_region();
+                    let mut compact_region = resp.take_compact_region();
                     let task = Task::CompactRegion {
-                        start_key: compact_region.get_keys()[0],
-                        end_key: compact_region.get_keys()[1],
-                        level:compact_region.get_level(),
+                        region: compact_region.take_keys().into_vec(),
+                        level: compact_region.get_level(),
                     };
-                    self.scheduler.schedule(task);
-//                    let req = new_compact_region_request(compact_region.get_level());
-//                    send_admin_request(&router, region_id, epoch, peer, req, Callback::None);
-//                    compact_files_in_range(self.db.as_ref(), Some(&compact_region.get_keys()[0]), Some(&compact_region.get_keys()[1]) ,Some(compact_region.get_level()));
+                    if let Err(e) = scheduler.schedule(task) {
+                        error!(
+                            "failed to send store infos to pd worker";
+                            "err" => ?e,
+                        );
+                    }
                 } else if resp.has_warmup_region() {
-//                    PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["warmup_region"].inc());
-
-                    let warmup_region = resp.take_warmup_region();
+                    let mut warmup_region = resp.take_warmup_region();
                     let task = Task::WarmupRegion {
-                        start_key: warmup_region.get_keys()[0],
-                        end_key: compact_region.get_keys()[1],
+                        region: warmup_region.take_keys().into_vec(),
                     };
-                    self.scheduler.schedule(task);
-//                    let req = new_warmup_region_request();
-//                    send_admin_request(&router, region_id, epoch, peer, req, Callback::None);
-//                    warmup_range(self.db.as_ref(), Some(&warmup_region.get_keys()[0]), Some(&warmup_region.get_keys()[1]));
+                    if let Err(e) = scheduler.schedule(task) {
+                        error!(
+                            "failed to send store infos to pd worker";
+                            "err" => ?e,
+                        );
+                    }
                 } else {
                     PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["noop"]).inc();
                 }
@@ -848,22 +859,20 @@ impl<T: PdClient> Runnable<Task> for Runner<T> {
 
         match task {
             Task::CompactRegion {
-                start_key,
-                end_key,
+                region,
                 level,
             } => {
                 if let Err(e) = self.handle_compact_region(
-                    Some(&start_key), Some(&end_key), level
+                    Some(&region[0]), Some(&region[1]), Some(level)
                 ) {
                     error!("excute compact region failed");
                 }
             }
             Task::WarmupRegion {
-                start_key,
-                end_key,
+                region,
             } => {
                 if let Err(e) = self.handle_warmup_region(
-                    Some(&start_key), Some(&end_key)
+                    Some(&region[0]), Some(&region[1])
                 ) {
                     error!("excute warmup region failed");
                 }

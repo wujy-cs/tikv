@@ -169,6 +169,7 @@ pub fn check_region_epoch(
                 check_ver = true;
                 check_conf_ver = true;
             }
+            _ => {}
         };
     }
 

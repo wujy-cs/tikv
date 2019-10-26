@@ -129,27 +129,6 @@ impl Runner {
 impl Runnable<Task> for Runner {
     fn run(&mut self, task: Task) {
         match task {
-            Task::CompactRegion {
-                start_key,
-                end_key,
-                level,
-            } => {
-                if let Err(e) = self.compact_range(
-                    start_key.as_ref().map(Vec::as_slice), end_key.as_ref().map(Vec::as_slice), level
-                ) {
-                    error!("excute compact region failed");
-                }
-            }
-            Task::WarmupRegion {
-                start_key,
-                end_key,
-            } => {
-                if let Err(e) = self.warmup_range(
-                    start_key.as_ref().map(Vec::as_slice), end_key.as_ref().map(Vec::as_slice)
-                ) {
-                    error!("excute warmup region failed");
-                }
-            }
             Task::Compact {
                 cf_name,
                 start_key,
