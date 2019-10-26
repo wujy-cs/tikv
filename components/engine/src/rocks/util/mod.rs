@@ -28,7 +28,7 @@ use crate::rocks::{
     CColumnFamilyDescriptor, ColumnFamilyOptions, CompactOptions, CompactionOptions,
     DBCompressionType, DBOptions, Env, Range, SliceTransform, DB,
 };
-use crate::{Error, Result, ALL_CFS, CF_DEFAULT};
+use crate::{Error, Result, ALL_CFS, CF_DEFAULT, Iterable};
 use tikv_util::file::calc_crc32;
 
 pub use self::event_listener::EventListener;
@@ -451,6 +451,14 @@ pub fn compact_range(
     compact_opts.set_exclusive_manual_compaction(exclusive_manual);
     compact_opts.set_max_subcompactions(max_subcompactions as i32);
     db.compact_range_cf_opt(handle, &compact_opts, start_key, end_key);
+}
+
+pub fn warmup_range (
+    db: &DB,
+    start: Option<&[u8]>,
+    end: Option<&[u8]>,
+) -> Result<()> {
+    db.scan(start.unwrap(), end.unwrap(), true, |key, value|{Ok(true)})
 }
 
 /// Compacts files in the range and above the output level.

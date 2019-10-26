@@ -95,6 +95,12 @@ enum Operator {
     HalfSplitRegion {
         region_epoch: metapb::RegionEpoch,
     },
+    CompactRegion {
+        region_id: u64,
+    },
+    WarmupRegion {
+        region_id: u64,
+    }
 }
 
 impl Operator {
@@ -135,6 +141,12 @@ impl Operator {
                 }
             }
             Operator::HalfSplitRegion { .. } => new_half_split_region(),
+            Operator::CompactRegion { .. } => {
+
+            },
+            Operator::WarmupRegion { .. } => {
+
+            },
         }
     }
 
@@ -195,6 +207,12 @@ impl Operator {
                 } else {
                     !policy.write().unwrap().schedule()
                 }
+            },
+            Operator::WarmupRegion => {
+                true
+            },
+            Operator::CompactRegion => {
+                true
             }
         }
     }
