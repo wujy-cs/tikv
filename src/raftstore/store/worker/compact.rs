@@ -30,17 +30,6 @@ pub enum Task {
         tombstones_num_threshold: u64, // The minimum RocksDB tombstones a range that need compacting has
         tombstones_percent_threshold: u64,
     },
-
-    CompactRegion {
-        start_key: Option<Key>,
-        end_key: Option<Key>,
-        level: int32,
-    },
-
-    WarmupRegion {
-        start_key: Option<Key>,
-        end_key: Option<Key>,
-    }
 }
 
 impl Display for Task {
@@ -103,34 +92,6 @@ pub struct Runner {
 impl Runner {
     pub fn new(engine: Arc<DB>) -> Runner {
         Runner { engine }
-    }
-
-    pub fn warmup_range(
-        &mut self,
-        start_key: Option<&[u8]>,
-        end_key: Option<&[u8]>,
-    ) -> Result<(), Error> {
-        warmup_range(
-            &self.engine,
-            start_key,
-            end_key
-        );
-        Ok(())
-    }
-
-    pub fn compact_range(
-        &mut self,
-        start_key: Option<&[u8]>,
-        end_key: Option<&[u8]>,
-        level: int32,
-    ) -> Result<(), Error> {
-        compact_files_in_range(
-            &self.engine,
-            start_key,
-            end_key,
-            level
-        );
-        Ok(())
     }
 
     /// Sends a compact range command to RocksDB to compact the range of the cf.

@@ -89,6 +89,16 @@ pub enum Task {
         read_io_rates: RecordPairVec,
         write_io_rates: RecordPairVec,
     },
+    CompactRegion {
+        start_key: Vec<u8>,
+        end_key: Vec<u8>,
+        level: int32,
+    },
+
+    WarmupRegion {
+        start_key: Vec<u8>,
+        end_key: Vec<u8>,
+    }
 }
 
 pub struct StoreStat {
@@ -329,6 +339,34 @@ impl<T: PdClient> Runner<T> {
             scheduler,
             stats_monitor,
         }
+    }
+
+    pub fn handle_warmup_region(
+        &mut self,
+        start_key: Option<&[u8]>,
+        end_key: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        warmup_range(
+            &self.engine,
+            start_key,
+            end_key
+        );
+        Ok(())
+    }
+
+    pub fn handle_compact_region(
+        &mut self,
+        start_key: Option<&[u8]>,
+        end_key: Option<&[u8]>,
+        level: int32,
+    ) -> Result<(), Error> {
+        compact_files_in_range(
+            &self.engine,
+            start_key,
+            end_key,
+            level
+        );
+        Ok(())
     }
 
     fn handle_ask_split(
@@ -731,18 +769,28 @@ impl<T: PdClient> Runner<T> {
                     send_admin_request(&router, region_id, epoch, peer, req, Callback::None)
                 } else if resp.has_compact_region() {
 //                    PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["compact_region"].inc());
-
                     let compact_region = resp.take_compact_region();
+                    let task = Task::CompactRegion {
+                        start_key: compact_region.get_keys()[0],
+                        end_key: compact_region.get_keys()[1],
+                        level:compact_region.get_level(),
+                    };
+                    self.scheduler.schedule(task);
 //                    let req = new_compact_region_request(compact_region.get_level());
 //                    send_admin_request(&router, region_id, epoch, peer, req, Callback::None);
-                    compact_files_in_range(self.db.as_ref(), Some(&compact_region.get_keys()[0]), Some(&compact_region.get_keys()[1]) ,Some(compact_region.get_level()));
+//                    compact_files_in_range(self.db.as_ref(), Some(&compact_region.get_keys()[0]), Some(&compact_region.get_keys()[1]) ,Some(compact_region.get_level()));
                 } else if resp.has_warmup_region() {
 //                    PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["warmup_region"].inc());
 
                     let warmup_region = resp.take_warmup_region();
+                    let task = Task::WarmupRegion {
+                        start_key: warmup_region.get_keys()[0],
+                        end_key: compact_region.get_keys()[1],
+                    };
+                    self.scheduler.schedule(task);
 //                    let req = new_warmup_region_request();
 //                    send_admin_request(&router, region_id, epoch, peer, req, Callback::None);
-                    warmup_range(self.db.as_ref(), Some(&warmup_region.get_keys()[0]), Some(&warmup_region.get_keys()[1]));
+//                    warmup_range(self.db.as_ref(), Some(&warmup_region.get_keys()[0]), Some(&warmup_region.get_keys()[1]));
                 } else {
                     PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["noop"]).inc();
                 }
@@ -799,6 +847,27 @@ impl<T: PdClient> Runnable<Task> for Runner<T> {
         }
 
         match task {
+            Task::CompactRegion {
+                start_key,
+                end_key,
+                level,
+            } => {
+                if let Err(e) = self.handle_compact_region(
+                    Some(&start_key), Some(&end_key), level
+                ) {
+                    error!("excute compact region failed");
+                }
+            }
+            Task::WarmupRegion {
+                start_key,
+                end_key,
+            } => {
+                if let Err(e) = self.handle_warmup_region(
+                    Some(&start_key), Some(&end_key)
+                ) {
+                    error!("excute warmup region failed");
+                }
+            }
             Task::AskSplit {
                 region,
                 split_key,
