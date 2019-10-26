@@ -436,6 +436,14 @@ pub fn roughly_cleanup_ranges(db: &DB, ranges: &[(Vec<u8>, Vec<u8>)]) -> Result<
     Ok(())
 }
 
+pub fn warmup_range (
+    db: &DB,
+    start: Option<&[u8]>,
+    end: Option<&[u8]>,
+) -> Result<()> {
+    db.scan(start.unwrap(), end.unwrap(), true, |key, value|{Ok(true)})
+}
+
 /// Compacts the column families in the specified range by manual or not.
 pub fn compact_range(
     db: &DB,
