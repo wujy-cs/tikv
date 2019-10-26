@@ -28,7 +28,7 @@ use crate::rocks::{
     CColumnFamilyDescriptor, ColumnFamilyOptions, CompactOptions, CompactionOptions,
     DBCompressionType, DBOptions, Env, Range, SliceTransform, DB,
 };
-use crate::{Error, Result, ALL_CFS, CF_DEFAULT};
+use crate::{Error, Result, ALL_CFS, CF_DEFAULT, Iterable};
 use tikv_util::file::calc_crc32;
 
 pub use self::event_listener::EventListener;
@@ -441,7 +441,7 @@ pub fn warmup_range (
     start: Option<&[u8]>,
     end: Option<&[u8]>,
 ) -> Result<()> {
-    db.scan(start.unwrap(), end.unwrap(), true, |key, value|{Ok(true)})
+    db.scan(start.unwrap(), end.unwrap(), true, |_key, _value|{Ok(true)})
 }
 
 /// Compacts the column families in the specified range by manual or not.

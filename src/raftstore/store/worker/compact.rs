@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use engine::rocks;
-use engine::rocks::util::compact_range;
+use engine::rocks::util::{compact_range, warmup_range, compact_files_in_range};
 use engine::CF_WRITE;
 use engine::DB;
 use tikv_util::worker::Runnable;
@@ -30,6 +30,17 @@ pub enum Task {
         tombstones_num_threshold: u64, // The minimum RocksDB tombstones a range that need compacting has
         tombstones_percent_threshold: u64,
     },
+
+    CompactRegion {
+        start_key: Option<Key>,
+        end_key: Option<Key>,
+        level: int32,
+    },
+
+    WarmupRegion {
+        start_key: Option<Key>,
+        end_key: Option<Key>,
+    }
 }
 
 impl Display for Task {
@@ -94,6 +105,34 @@ impl Runner {
         Runner { engine }
     }
 
+    pub fn warmup_range(
+        &mut self,
+        start_key: Option<&[u8]>,
+        end_key: Option<&[u8]>,
+    ) -> Result<(), Error> {
+        warmup_range(
+            &self.engine,
+            start_key,
+            end_key
+        );
+        Ok(())
+    }
+
+    pub fn compact_range(
+        &mut self,
+        start_key: Option<&[u8]>,
+        end_key: Option<&[u8]>,
+        level: int32,
+    ) -> Result<(), Error> {
+        compact_files_in_range(
+            &self.engine,
+            start_key,
+            end_key,
+            level
+        );
+        Ok(())
+    }
+
     /// Sends a compact range command to RocksDB to compact the range of the cf.
     pub fn compact_range_cf(
         &mut self,
@@ -129,6 +168,27 @@ impl Runner {
 impl Runnable<Task> for Runner {
     fn run(&mut self, task: Task) {
         match task {
+            Task::CompactRegion {
+                start_key,
+                end_key,
+                level,
+            } => {
+                if let Err(e) = self.compact_range(
+                    start_key.as_ref().map(Vec::as_slice), end_key.as_ref().map(Vec::as_slice), level
+                ) {
+                    error!("excute compact region failed");
+                }
+            }
+            Task::WarmupRegion {
+                start_key,
+                end_key,
+            } => {
+                if let Err(e) = self.warmup_range(
+                    start_key.as_ref().map(Vec::as_slice), end_key.as_ref().map(Vec::as_slice)
+                ) {
+                    error!("excute warmup region failed");
+                }
+            }
             Task::Compact {
                 cf_name,
                 start_key,
