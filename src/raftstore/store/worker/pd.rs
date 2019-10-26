@@ -729,6 +729,20 @@ impl<T: PdClient> Runner<T> {
                     info!("try to merge"; "region_id" => region_id, "merge" => ?merge);
                     let req = new_merge_request(merge);
                     send_admin_request(&router, region_id, epoch, peer, req, Callback::None)
+                } else if resp.has_compact_region() {
+//                    PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["compact_region"].inc());
+
+                    let compact_region = resp.take_compact_region();
+//                    let req = new_compact_region_request(compact_region.get_level());
+//                    send_admin_request(&router, region_id, epoch, peer, req, Callback::None);
+                    compact_files_in_range(self.db.as_ref(), Some(&compact_region.get_keys()[0]), Some(&compact_region.get_keys()[1]) ,Some(compact_region.get_level()));
+                } else if resp.has_warmup_region() {
+//                    PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["warmup_region"].inc());
+
+                    let warmup_region = resp.take_warmup_region();
+//                    let req = new_warmup_region_request();
+//                    send_admin_request(&router, region_id, epoch, peer, req, Callback::None);
+                    warmup_range(self.db.as_ref(), Some(&warmup_region.get_keys()[0]), Some(&warmup_region.get_keys()[1]));
                 } else {
                     PD_HEARTBEAT_COUNTER_VEC.with_label_values(&["noop"]).inc();
                 }
