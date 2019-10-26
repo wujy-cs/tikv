@@ -785,6 +785,7 @@ impl<T: PdClient> Runner<T> {
                         region: compact_region.take_keys().into_vec(),
                         level: compact_region.get_level(),
                     };
+                    info!("try to schedule compact region");
                     if let Err(e) = scheduler.schedule(task) {
                         error!(
                             "failed to send store infos to pd worker";
@@ -796,6 +797,7 @@ impl<T: PdClient> Runner<T> {
                     let task = Task::WarmupRegion {
                         region: warmup_region.take_keys().into_vec(),
                     };
+                    info!("try to schedule warmup region");
                     if let Err(e) = scheduler.schedule(task) {
                         error!(
                             "failed to send store infos to pd worker";
