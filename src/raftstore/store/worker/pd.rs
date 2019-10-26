@@ -711,6 +711,7 @@ impl<T: PdClient> Runner<T> {
     }
 
     fn schedule_heartbeat_receiver(&mut self, handle: &Handle) {
+        info!("get heartbeat response!");
         let router = self.router.clone();
         let scheduler = self.scheduler.clone();
         let store_id = self.store_id;
