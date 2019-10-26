@@ -357,6 +357,7 @@ impl<T: PdClient> Runner<T> {
         start_key: Option<&[u8]>,
         end_key: Option<&[u8]>,
     ) -> Result<(), Error> {
+        info!("try to imple warmup region!");
         warmup_range(
             &self.db,
             start_key,
@@ -371,6 +372,7 @@ impl<T: PdClient> Runner<T> {
         end_key: Option<&[u8]>,
         level: Option<i32>,
     ) -> Result<(), Error> {
+        info!("try to impl compact region!");
         compact_files_in_range(
             &self.db,
             start_key,
